@@ -4,3 +4,4 @@ numpy
 tokenizers>=0.19.0
 torch
 transformers>=4.40.0
+git+https://github.com/modelscope/FunCodec@master
