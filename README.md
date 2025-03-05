@@ -84,6 +84,29 @@ with torch.no_grad():
 sf.write("some_audio_output.wav", audio_2.cpu().numpy(), sr)
 ```
 
+### FunCodec
+
+FunCodec's weight is not managed like a Transformers model, which can be downloaded automatically. To use FunCodec, you need to complete an extra step to manually download the weight:
+
+```shell
+# Specify the model name
+model_name="audio_codec-encodec-en-libritts-16k-nq32ds640-pytorch"
+# Download the model
+git lfs install
+git clone https://huggingface.co/alibaba-damo/${model_name}
+mkdir pretrained
+mv ${model_name} pretrained/$model_name
+```
+
+Once the weight downloaded into `pretrained` folder you can specify the weight to `audio_to_codes`:
+
+```shell
+python -m codec_bpe.audio_to_codes \
+    --audio_path path/to/audio \
+    --use_funcodec \
+    --funcodec_model pretrained/audio_codec-encodec-en-libritts-16k-nq32ds640-pytorch \
+```
+
 ### Train a tokenizer from audio files
 To train a tokenizer from audio files:
 
