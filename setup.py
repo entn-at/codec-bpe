@@ -32,4 +32,7 @@ setup(
     long_description_content_type="text/markdown",
     packages=find_packages(),
     install_requires=read_requirements("requirements.txt"),
+    extras_require={
+        "funcodec": read_requirements("requirements_funcodec.txt"),
+    },
 )

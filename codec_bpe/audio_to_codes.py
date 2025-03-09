@@ -4,11 +4,25 @@ import shutil
 import argparse
 import numpy as np
 import torch
+from enum import Enum
 from tqdm import tqdm
+
+class CodecTypes(Enum):
+    ENCODEC = "encodec"
+    DAC = "dac"
+    MIMI = "mimi"
+    FUNCODEC = "funcodec"
+
+    def __str__(self):
+        return self.value
+    def __eq__(self, value):
+        return str(self) == value
+
+SUPPORTED_EXTENSIONS = [".mp3", ".wav", ".flac", ".opus"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Convert audio files to numpy files containing Encodec or DAC codes"
+        description="Convert audio files to numpy files containing audio codes using a Codec"
     )
     parser.add_argument(
         "--audio_path",
@@ -26,53 +40,39 @@ if __name__ == "__main__":
         "--chunk_size_secs", type=int, default=60, help="Chunk size in seconds"
     )
     parser.add_argument(
-        "--encodec_model",
+        "--codec_type", 
+        type=str, 
+        choices=list(CodecTypes),
+        default="encodec",
+        help="Type of codec to use for encoding. Default is 'encodec'.",
+    )
+    parser.add_argument(
+        "--codec_model",
         type=str,
         default="facebook/encodec_24khz",
-        help="Encodec model name. Ignored if --use_dac or --use_mimi are set.",
+        help="Codec model path on the HuggingFace Model Hub.",
     )
     parser.add_argument(
         "--bandwidth",
         type=float,
-        default=6.0,
-        help="Bandwidth for encoding. Ignored if --use_dac or --use_mimi are set.",
-    )
-    parser.add_argument(
-        "--dac_model",
-        type=str,
-        default="16khz",
-        help="DAC model name. Only applies if --use_dac is set.",
-    )
-    parser.add_argument(
-        "--mimi_model",
-        type=str,
-        default="kyutai/mimi",
-        help="Mimi model name. Only applies if --use_mimi is set.",
-    )
-    parser.add_argument(
-        "--funcodec_model",
-        type=str,
-        default="facebook/funcodec-base-8bit",
-        help="Funcodec model name. Only applies if --use_funcodec is set.",
+        default=None,
+        help=(
+            "Bandwidth for encoding. Only applies if --codec_type is 'encodec' or 'funcodec'. "
+            "Values may be provided in kbps (e.g. 1.5) or in bps (e.g. 1500)."
+            "For FunCodec, valid ranges for this parameter are listed in the 'Bitrate' column at "
+            "https://github.com/modelscope/FunCodec?tab=readme-ov-file#available-models. "
+            "For EnCodec, valid values are 1.5, 3.0, 6.0, 12.0, and 24.0 (kpbs). "
+            "None uses the max bandwidth with FunCodec and the min bandwidth with EnCodec."
+        ),
     )
     parser.add_argument(
         "--n_quantizers",
         type=int,
         default=None,
-        help="Number of quantizers for DAC model. None to use all quantizers. Only applies if --use_dac or --use_mimi are set.",
-    )
-    parser.add_argument(
-        "--use_dac", action="store_true", help="Use DAC model instead of Encodec model"
-    )
-    parser.add_argument(
-        "--use_mimi",
-        action="store_true",
-        help="Use Mimi model instead of Encodec model",
-    )
-    parser.add_argument(
-        "--use_funcodec",
-        action="store_true",
-        help="Use Funcodec model instead of Encodec model",
+        help=(
+            "Number of quantizers (codebooks) to use for encoding. None to use all quantizers. "
+            "Only applies if --codec_type is 'dac' or 'mimi'."
+        ),
     )
     parser.add_argument(
         "--stereo",
@@ -82,46 +82,44 @@ if __name__ == "__main__":
     parser.add_argument(
         "--extensions",
         nargs="+",
-        default=[".mp3", ".wav", ".flac", ".opus"],
+        default=SUPPORTED_EXTENSIONS,
         help="Audio file extensions to convert. Formats must be supported by a librosa backend.",
     )
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Overwrite existing numpy codes directories. If not set, audio corresponding to existing numpy codes directories will be skipped.",
+        help=(
+            "Overwrite existing numpy codes directories. If not set, audio corresponding to existing "
+            "numpy codes directories will be skipped."
+        ),
     )
     args = parser.parse_args()
+    
+    # support bandwidth in kbps or bps
+    if args.bandwidth is not None:
+        if args.codec_type == CodecTypes.FUNCODEC and args.bandwidth <= 16.0:
+            args.bandwidth *= 1000
+        if args.codec_type == CodecTypes.ENCODEC and args.bandwidth > 24.0:
+            args.bandwidth /= 1000
 
+    # load the codec model
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    if args.use_dac:
-        import dac
-        from audiotools import AudioSignal
-
-        model_path = dac.utils.download(model_type=args.dac_model)
-        model = dac.DAC.load(model_path).to(device)
-        model.eval()
-        codec_name_for_path = f"dac_{args.dac_model}"
-    elif args.use_mimi:
-        from transformers import MimiModel, AutoProcessor
-
-        model = MimiModel.from_pretrained(args.mimi_model).to(device)
-        processor = AutoProcessor.from_pretrained(args.mimi_model)
-        codec_name_for_path = args.mimi_model.split("/")[-1]
-    elif args.use_funcodec:
+    if args.codec_type == CodecTypes.FUNCODEC:
         from funcodec.bin.codec_inference import Speech2Token
-
-        config_file = f"{args.funcodec_model}/config.yaml"
-        model_pth = f"{args.funcodec_model}/model.pth"
+        from huggingface_hub import snapshot_download
+        cache_path = snapshot_download(args.codec_model)
+        config_file = os.path.join(cache_path, "config.yaml")
+        model_pth = os.path.join(cache_path, "model.pth")
         model = Speech2Token(config_file, model_pth, device=device)
         model.eval()
-        codec_name_for_path = args.funcodec_model.split("/")[-1]
     else:
-        from transformers import EncodecModel, AutoProcessor
+        from transformers import AutoModel, AutoProcessor
+        model = AutoModel.from_pretrained(args.codec_model).to(device)
+        processor = AutoProcessor.from_pretrained(args.codec_model)
 
-        model = EncodecModel.from_pretrained(args.encodec_model).to(device)
-        processor = AutoProcessor.from_pretrained(args.encodec_model)
-        codec_name_for_path = args.encodec_model.split("/")[-1]
-
+    # traverse the audio directory recursively and convert in each subdirectory containing
+    # audio fileswith the specified extensions
+    codec_name_for_path = args.codec_model.split("/")[-1]
     codes_path = os.path.join(
         args.codes_path, codec_name_for_path, "stereo" if args.stereo else "mono"
     )
@@ -149,16 +147,12 @@ if __name__ == "__main__":
                 # Load the audio file
                 num_audio_files += 1
                 sr = (
-                    model.sample_rate
-                    if args.use_dac
-                    else (
-                        model.model_args.model_conf["target_sample_hz"]
-                        if args.use_funcodec
-                        else model.config.sampling_rate
-                    )
+                    model.model_args.sampling_rate if args.codec_type == CodecTypes.FUNCODEC 
+                    else model.config.sampling_rate
                 )
                 audio, sr = librosa.load(file_path, sr=sr, mono=not args.stereo)
 
+                # Encode it in chunks of size chunk_size_secs on each channel independently
                 start = 0
                 while True:
                     end = start + args.chunk_size_secs * sr
@@ -167,65 +161,33 @@ if __name__ == "__main__":
                         audio_chunk = np.expand_dims(audio_chunk, axis=0)
                     for channel in range(audio_chunk.shape[0]):
                         channel_chunk = audio_chunk[channel]
-                        if args.use_dac:
-                            # prepare for model
-                            signal = AudioSignal(channel_chunk, sample_rate=sr).to(
-                                device
-                            )
-                            inputs = model.preprocess(
-                                signal.audio_data, signal.sample_rate
-                            )
-                            # encode
-                            with torch.no_grad():
-                                _, encoded_chunk, _, _, _ = model.encode(
-                                    inputs, n_quantizers=args.n_quantizers
-                                )
-                        elif args.use_mimi:
-                            # prepare for model
-                            inputs = processor(
-                                raw_audio=channel_chunk,
-                                sampling_rate=sr,
-                                return_tensors="pt",
-                            ).to(device)
-                            # encode
-                            with torch.no_grad():
-                                encoded_chunk = model.encode(
-                                    **inputs, num_quantizers=args.n_quantizers
-                                ).audio_codes
-                        elif args.use_funcodec:
+                        if args.codec_type == CodecTypes.FUNCODEC:
                             with torch.no_grad():
                                 encoded_chunk, _, _, _ = model(
-                                    torch.from_numpy(channel_chunk)
-                                    .to(device)
-                                    .unsqueeze(0),
+                                    torch.from_numpy(channel_chunk).to(device).unsqueeze(0),
+                                    bit_width=int(args.bandwidth),
                                     run_mod="encode",
                                 )
-                                encoded_chunk = encoded_chunk[0]
+                                encoded_chunk = torch.permute(encoded_chunk[0], (1, 0, 2))
                         else:
                             # prepare for model
-                            inputs = processor(
-                                raw_audio=channel_chunk,
-                                sampling_rate=sr,
-                                return_tensors="pt",
-                            ).to(device)
+                            inputs = processor(raw_audio=channel_chunk, sampling_rate=sr, return_tensors="pt").to(device)
+                            encode_kwargs = {}
+                            if args.codec_type == CodecTypes.DAC:
+                                encode_kwargs["n_quantizers"] = args.n_quantizers
+                            elif args.codec_type == CodecTypes.MIMI:
+                                encode_kwargs["num_quantizers"] = args.n_quantizers
+                            elif args.codec_type == CodecTypes.ENCODEC:
+                                encode_kwargs["bandwidth"] = args.bandwidth
                             # encode
                             with torch.no_grad():
-                                encoded_chunk = model.encode(
-                                    **inputs, bandwidth=args.bandwidth
-                                ).audio_codes
+                                encoded_chunk = model.encode(**inputs, **encode_kwargs).audio_codes
 
                         # Save the numpy file
                         start_secs = start // sr
-                        numpy_filepath = os.path.join(
-                            numpy_root,
-                            f"{file_name_noext}_c{channel}_t{start_secs:06d}.npy",
-                        )
+                        numpy_filepath = os.path.join(numpy_root, f"{file_name_noext}_c{channel}_t{start_secs:06d}.npy")
                         os.makedirs(os.path.dirname(numpy_filepath), exist_ok=True)
-                        np.save(
-                            numpy_filepath,
-                            encoded_chunk.cpu().numpy(),
-                            allow_pickle=False,
-                        )
+                        np.save(numpy_filepath, encoded_chunk.cpu().numpy(), allow_pickle=False)
                         num_numpy_files += 1
 
                     if end >= audio.shape[-1]:

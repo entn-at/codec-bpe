@@ -1,21 +1,19 @@
 # codec-bpe
 ![codec_bpe.png](img/codec_bpe.png)
 
-Codec BPE is an implementation of [Acoustic BPE](https://arxiv.org/abs/2310.14580) (Shen et al., 2024), extended for RVQ-based Neural Audio Codecs such as [EnCodec](https://github.com/facebookresearch/encodec) (Défossez et al., 2022), [DAC](https://github.com/descriptinc/descript-audio-codec) (Kumar et al., 2023), and [Mimi](https://huggingface.co/kyutai/mimi) (Défossez et al., 2024). Built on top of the [HuggingFace Tokenizers](https://github.com/huggingface/tokenizers) library.
+Codec BPE is an implementation of [Acoustic BPE](https://arxiv.org/abs/2310.14580) (Shen et al., 2024), extended for RVQ-based Neural Audio Codecs such as [EnCodec](https://github.com/facebookresearch/encodec) (Défossez et al., 2022), [DAC](https://github.com/descriptinc/descript-audio-codec) (Kumar et al., 2023), and [Mimi](https://huggingface.co/kyutai/mimi) (Défossez et al., 2024), and [FunCodec](https://funcodec.github.io/) (Du et al., 2024). Built on top of the [HuggingFace Tokenizers](https://github.com/huggingface/tokenizers) library.
 
 Codec BPE flattens multi-level codes from Residual Vector Quantizers (RVQ) and converts them into unicode strings for tokenization into compressed token sequences. For example, a single Codec BPE token might represent a 4-gram of codes from 4 codebooks representing a single acoustic unit, a 6-gram comprising a whole acoustic unit and half of the next one, or even an 8-gram represnting two whole acoustic units. Depending on the codec, vocab size and type of audio, this can yield savings of 2-5x in sequence length compared to directly modeling the flattened codebooks.
 
-**Using Codec BPE allows efficient audio language modeling with multi-level codecs to be done with vanilla LLM architectures, meaning no custom architecture is needed to deal with modeling the RVQ. Your model will already be compatible with the full ecosystem of training and inference tools available for [HuggingFace Transformers](https://github.com/huggingface/transformers), such as [vLLM](https://github.com/vllm-project/vllm)!**
+**Using Codec BPE allows efficient audio language modeling with multi-level codecs to be done with vanilla LLM architectures, meaning no custom architecture is needed to deal with modeling the RVQ. Your model will already be compatible with the full ecosystem of training and inference tools available for [HuggingFace Transformers](https://github.com/huggingface/transformers), such as [vLLM](https://github.com/vllm-project/vllm) and [Ollama](https://ollama.com/)!**
 
 ## 🚀 Updates
+**2025-03-09**
+- Added support for [FunCodec](https://funcodec.github.io/) from Alibaba DAMO Speech Lab! Use `--codec_type funcodec` when encoding audio with `codec_bpe.audio_to_codes` to encode using the FunCodec model. Model paths on the HuggingFace hub are listed [here](https://github.com/modelscope/FunCodec?tab=readme-ov-file#available-models).
+
 **2024-09-20**
 
-- Added support for Kyutai Lab's [Mimi codec](https://huggingface.co/kyutai/mimi), an amazing new codec with a 12.5 Hz framerate! Simply add `--use_mimi` when encoding audio with `codec_bpe.audio_to_codes` to encode using the Mimi model. More info [here](#train-a-tokenizer-from-audio-files).
-
-    **Note:** Until Mimi is included in a stable release of HuggingFace Transformers, you need to install Transformers from source:
-    ```bash
-    pip install git+https://github.com/huggingface/transformers.git@main
-    ```
+- Added support for Kyutai Lab's [Mimi codec](https://huggingface.co/kyutai/mimi), an amazing new codec with a 12.5 Hz framerate! Simply use `--codec_type mimi` when encoding audio with `codec_bpe.audio_to_codes` to encode using the Mimi model. More info [here](#train-a-tokenizer-from-audio-files).
 
 **2024-09-19**
 
@@ -25,11 +23,34 @@ Codec BPE flattens multi-level codes from Residual Vector Quantizers (RVQ) and c
 ```bash
 pip install codec-bpe
 ```
+If you want to use the `--codec_type funcodec` option with `codec_bpe.audio_to_codes`, run:
+```bash
+pip install codec-bpe[funcodec]
+```
+
+## Supported Codecs
+| Model                                                               | Sample Rate (kHz)* | Framerate (Hz)* | Max Codebooks | Codebook Size | Max Bandwidth (kbps)* | Training Domain |
+|:--------------------------------------------------------------------|:------------------:|:--------------:|:--------------:|:-------------:|:---------------------:|:---------------:|
+| [🤗 EnCodec 24khz](https://huggingface.co/facebook/encodec_24khz)  | 24                 | 75             | 32             | 1024          | 24                    | General         |
+| [🤗 DAC 44khz](https://huggingface.co/descript/dac_44khz)          | 44.1               | 86.13          | 9              | 1024          | 7.8                   | General         |
+| [🤗 DAC 24khz](https://huggingface.co/descript/dac_24khz)          | 24                 | 75             | 32             | 1024          | 24                    | General         |
+| [🤗 DAC 16khz](https://huggingface.co/descript/dac_16khz)          | 16                 | 50             | 12             | 1024          | 6                     | General         |
+| [🤗 Mimi](https://huggingface.co/kyutai/mimi)                      | 24                 | 12.5           | 32             | 2048          | 4.4                   | Speech          |
+| [🤗 FunCodec zh_en-general-16k-nq32ds640](https://huggingface.co/alibaba-damo/audio_codec-encodec-zh_en-general-16k-nq32ds640-pytorch) | 16 | 25 | 32 | 1024 | 8  | General         |
+| [🤗 FunCodec zh_en-general-16k-nq32ds320](https://huggingface.co/alibaba-damo/audio_codec-encodec-zh_en-general-16k-nq32ds320-pytorch) | 16 | 50 | 32 | 1024 | 16 | General         |
+| [🤗 FunCodec en-libritts-16k-nq32ds640](https://huggingface.co/alibaba-damo/audio_codec-encodec-en-libritts-16k-nq32ds640-pytorch)     | 16 | 25 | 32 | 1024 | 8  | Audiobooks      |
+| [🤗 FunCodec en-libritts-16k-nq32ds320](https://huggingface.co/alibaba-damo/audio_codec-encodec-en-libritts-16k-nq32ds320-pytorch)     | 16 | 50 | 32 | 1024 | 16 | Audiobooks      |
+
+\* Sample Rate (kHz) is the sampling rate of the audio input to the codec.
+
+\* Framerate (Hz) is the number of timesteps (acoustic units of size `num_codebooks`) per second output by the codec.
+
+\* Bandwidth (kbps) = `framerate (Hz) x num_codebooks x log2(codebook_size)`.
 
 ## Usage
 
 ### Convert audio codes to and from unicode strings
-Use your codec of choice (e.g., EnCodec, DAC, Mimi) to encode your audio into a torch tensor or numpy array of codes of shape (num_codebooks, length), then use the provided converter methods to convert to and from unicode strings.
+Use your codec of choice (e.g., EnCodec, DAC, Mimi, FunCodec) to encode your audio into a torch tensor or numpy array of codes of shape (num_codebooks, length), then use the provided converter methods to convert to and from unicode strings.
 
 **Note:** In the Acoustic BPE paper, a single-level codec was used (HuBERT + k-means), where each encoded timestep consisted of a single code which was converted to a single unicode character. Here, we support multi-level codecs based on Residual Vector Quantizers. If num_codebooks > 1, a flattening pattern is used to interleave all codebooks into a single level before mapping to unicode. For example, if 4 codebooks are used then each encoded timestep would consist of 4 codes (one from each codebook) and would be converted to a unicode 4-gram.
 
@@ -84,53 +105,38 @@ with torch.no_grad():
 sf.write("some_audio_output.wav", audio_2.cpu().numpy(), sr)
 ```
 
-### FunCodec
-
-FunCodec's weight is not managed like a Transformers model, which can be downloaded automatically. To use FunCodec, you need to complete an extra step to manually download the weight:
-
-```shell
-# Specify the model name
-model_name="audio_codec-encodec-en-libritts-16k-nq32ds640-pytorch"
-# Download the model
-git lfs install
-git clone https://huggingface.co/alibaba-damo/${model_name}
-mkdir pretrained
-mv ${model_name} pretrained/$model_name
-```
-
-Once the weight downloaded into `pretrained` folder you can specify the weight to `audio_to_codes`:
-
-```shell
-python -m codec_bpe.audio_to_codes \
-    --audio_path path/to/audio \
-    --use_funcodec \
-    --funcodec_model pretrained/audio_codec-encodec-en-libritts-16k-nq32ds640-pytorch \
-```
-
 ### Train a tokenizer from audio files
 To train a tokenizer from audio files:
 
-1. Use your codec of choice (e.g., EnCodec, DAC, Mimi) to encode each audio file into a directory of numpy arrays (.npy files):
+1. Use your codec of choice (e.g., EnCodec, DAC, Mimi, FunCodec) to encode each audio file into a directory of numpy arrays (.npy files):
     ```bash
     # encode audio files using EnCodec 24 kHz at 3 kbps (4 codebooks)
     python -m codec_bpe.audio_to_codes \
         --audio_path path/to/audio \
-        --encodec_model facebook/encodec_24khz \
+        --codec_type encodec \
+        --codec_model facebook/encodec_24khz \
         --bandwidth 3.0
 
     # encode audio files using first 4 codebooks of DAC 44kHz
     python -m codec_bpe.audio_to_codes \
         --audio_path path/to/audio \
-        --dac_model 44khz \
-        --n_quantizers 4 \
-        --use_dac
+        --codec_type dac \
+        --codec_model descript/dac_44khz \
+        --n_quantizers 4
 
     # encode audio files using first 6 codebooks of Mimi (24kHz)
     python -m codec_bpe.audio_to_codes \
         --audio_path path/to/audio \
-        --mimi_model kyutai/mimi \
-        --n_quantizers 6 \
-        --use_mimi
+        --codec_type mimi \
+        --codec_model kyutai/mimi \
+        --n_quantizers 6
+
+    # encode audio files using FunCodec (16kHz) at 1.5 kbps (6 codebooks)
+    python -m codec_bpe.audio_to_codes \
+        --audio_path path/to/audio \
+        --codec_type funcodec \
+        --codec_model alibaba-damo/audio_codec-encodec-zh_en-general-16k-nq32ds640-pytorch \
+        --bit_width 1500
     ```
 
 2. Suppose you want to use the first 4 codebooks of [EnCodec 24 kHz](https://huggingface.co/facebook/encodec_24khz), run:
