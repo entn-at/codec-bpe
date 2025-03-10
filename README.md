@@ -136,7 +136,7 @@ To train a tokenizer from audio files:
         --audio_path path/to/audio \
         --codec_type funcodec \
         --codec_model alibaba-damo/audio_codec-encodec-zh_en-general-16k-nq32ds640-pytorch \
-        --bit_width 1500
+        --bandwidth 1500
     ```
 
 2. Suppose you want to use the first 4 codebooks of [EnCodec 24 kHz](https://huggingface.co/facebook/encodec_24khz), run:
