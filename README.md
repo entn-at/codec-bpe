@@ -9,11 +9,11 @@ Codec BPE flattens multi-level codes from Residual Vector Quantizers (RVQ) and c
 
 ## 🚀 Updates
 **2025-03-09**
-- Added support for [FunCodec](https://funcodec.github.io/) from Alibaba DAMO Speech Lab! Use `--codec_type funcodec` when encoding audio with `codec_bpe.audio_to_codes` to encode using the FunCodec model. Model paths on the HuggingFace hub are listed [here](https://github.com/modelscope/FunCodec?tab=readme-ov-file#available-models).
+- Added support for [FunCodec](https://funcodec.github.io/) from Alibaba DAMO Speech Lab! Use `--codec_model alibaba-damo/...` when encoding audio with `codec_bpe.audio_to_codes` to encode using the FunCodec model. Model paths on the HuggingFace hub are listed [here](https://github.com/modelscope/FunCodec?tab=readme-ov-file#available-models). See [here](#train-a-tokenizer-from-audio-files) for a usage example.
 
 **2024-09-20**
 
-- Added support for Kyutai Lab's [Mimi codec](https://huggingface.co/kyutai/mimi), an amazing new codec with a 12.5 Hz framerate! Simply use `--codec_type mimi` when encoding audio with `codec_bpe.audio_to_codes` to encode using the Mimi model. More info [here](#train-a-tokenizer-from-audio-files).
+- Added support for Kyutai Lab's [Mimi codec](https://huggingface.co/kyutai/mimi), an amazing new codec with a 12.5 Hz framerate! Use `--codec_model kyutai/mimi` when encoding audio with `codec_bpe.audio_to_codes` to encode using the Mimi model. See [here](#train-a-tokenizer-from-audio-files) for a usage example.
 
 **2024-09-19**
 
@@ -113,33 +113,50 @@ To train a tokenizer from audio files:
     # encode audio files using EnCodec 24 kHz at 3 kbps (4 codebooks)
     python -m codec_bpe.audio_to_codes \
         --audio_path path/to/audio \
-        --codec_type encodec \
         --codec_model facebook/encodec_24khz \
-        --bandwidth 3.0
+        --bandwidth 3.0 \
+        --batch_size 8
 
     # encode audio files using first 4 codebooks of DAC 44kHz
     python -m codec_bpe.audio_to_codes \
         --audio_path path/to/audio \
-        --codec_type dac \
         --codec_model descript/dac_44khz \
-        --n_quantizers 4
+        --n_quantizers 4 \
+        --batch_size 8
 
     # encode audio files using first 6 codebooks of Mimi (24kHz)
     python -m codec_bpe.audio_to_codes \
         --audio_path path/to/audio \
-        --codec_type mimi \
         --codec_model kyutai/mimi \
-        --n_quantizers 6
+        --n_quantizers 6 \
+        --batch_size 8
 
     # encode audio files using FunCodec (16kHz) at 1.5 kbps (6 codebooks)
     python -m codec_bpe.audio_to_codes \
         --audio_path path/to/audio \
-        --codec_type funcodec \
         --codec_model alibaba-damo/audio_codec-encodec-zh_en-general-16k-nq32ds640-pytorch \
-        --bandwidth 1500
+        --bandwidth 1500 \
+        --batch_size 8
     ```
 
 2. Suppose you want to use the first 4 codebooks of [EnCodec 24 kHz](https://huggingface.co/facebook/encodec_24khz), run:
+    ```bash
+    python -m codec_bpe.train_tokenizer \
+        --codes_path output/codes/encodec_24khz/mono \
+        --chunk_size_secs 30 \
+        --vocab_size 30000 \
+        --pad_token "<pad>"
+    ```
+    Here: 
+    - `chunk_size_secs` specifies the number of timesteps (in seconds) that get converted to unicode and returned to the underlying Tokenizers trainer at a time.
+    - `vocab_size` specifies the number of tokens (including the base vocabulary of individual unicode characters) that you want your tokenizer to have. The base vocabulary size is `num_codebooks` x `codebook_size`. For example, the command above would yield a tokenizer with a base vocabulary of 4096 individual unicode character tokens, each representing a single code from a single codebook, and 25,904 merged "ngram" tokens.
+
+    By default, the following additional arguments are automatically initialized from the `codec_info.json` file output by `codec_bpe.audio_to_codes`:
+    - `num_codebooks` specifies how many codebooks should be used (in a flattened pattern) when converting each timestep to unicode. For example, EnCodec 24kHz uses 2 codebooks at 1.5 kbps, 4 codebooks at 3 kbps, 8 codebooks at 6 kbps, etc. Note: when encoding the audio files, you should use at least as many codebooks as you plan to specify here.
+    - `codebook_size` specifies the size of the codebook. EnCodec 24 kHz uses a codebook size of 1024.
+    - `codec_framerate` specifies the framerate (number of timesteps per second) of the codec. EnCodec 24 kHz generates 75 timesteps per second.
+    
+    You may also pass these arguments explicitly. For example:
     ```bash
     python -m codec_bpe.train_tokenizer \
         --codes_path output/codes/encodec_24khz/mono \
@@ -148,30 +165,25 @@ To train a tokenizer from audio files:
         --codec_framerate 75 \
         --chunk_size_secs 30 \
         --vocab_size 30000 \
-        --pad_token "<pad>" \
-        --save_path output/my_tokenizer
+        --pad_token "<pad>"
     ```
-    Here: 
-    - `num_codebooks` specifies how many codebooks should be used (in a flattened pattern) when converting each timestep to unicode. For example, EnCodec 24kHz uses 2 codebooks at 1.5 kbps, 4 codebooks at 3 kbps, 8 codebooks at 6 kbps, etc. Note: when encoding the audio files, you should use at least as many codebooks as you plan to specify here.
-    - `codebook_size` specifies the size of the codebook. EnCodec 24 kHz uses a codebook size of 1024.
-    - `codec_framerate` specifies the framerate (number of timesteps per second) of the codec. EnCodec 24 kHz generates 75 timesteps per second.
-    - `chunk_size_secs` specifies the number of timesteps (in seconds) that get converted to unicode and returned to the underlying Tokenizers trainer at a time.
-    - `vocab_size` specifies the number of tokens (including the base vocabulary of individual unicode characters) that you want your tokenizer to have. The base vocabulary size is `num_codebooks` x `codebook_size`. For example, the command above would yield a tokenizer with a base vocabulary of 4096 individual unicode character tokens, each representing a single code from a single codebook, and 25,904 merged "ngram" tokens.
+    This is useful if you are using audio codes that you generated with a tool other than the `codec_bpe.audio_to_codes` script, or if you wish to use a lower number of codebooks
+    for training the tokenizer than you used for encoding the audio files.
 
     See [train_tokenizer.py](codec_bpe/train_tokenizer.py) for a complete list of supported arguments.
 
 ### Extend an existing Transformers PreTrainedTokenizer
-You may want to train a new Codec BPE tokenizer and then export its trained vocabulary to an existing Transformers tokenizer. For example, extending the Llama3, Mistral, Qwen, etc. tokenizers for multimodal text-audio language modeling.
+You may want to train a new Codec BPE tokenizer and then export its trained vocabulary to an existing Transformers tokenizer. For example, extending the Llama, Mistral, Qwen, etc. tokenizers for multimodal text-audio language modeling.
 
-Suppose you have trained your Codec BPE tokenizer and saved it to `output/tokenizer.json` and you want to extend the Mistral-7B-v0.1 tokenizer with its vocabulary, run:
+Suppose you have trained your Codec BPE tokenizer and saved it to `output/encodec_bpe_4cb_30k` and you want to extend the Mistral-7B-v0.1 tokenizer with its vocabulary, run:
 ```bash
 python -m codec_bpe.extend_tokenizer \
     --existing_tokenizer mistralai/Mistral-7B-v0.1 \
-    --codec_bpe_tokenizer output/my_tokenizer \
+    --codec_bpe_tokenizer output/encodec_bpe_4cb_30k \
     --audio_start_token "<audio>" \ # optional
     --audio_end_token "</audio>"    # optional
 ```
-This will simply add every token in `output/tokenizer.json` to the `mistralai/Mistral-7B-v0.1` tokenizer as a special token and save a copy of the latter. 
+This will simply add every token in `output/encodec_bpe_4cb_30k/tokenizer.json` to the `mistralai/Mistral-7B-v0.1` tokenizer as a special token and save a copy of the latter. 
 
 #### Avoiding vocabulary conflicts
 If the added Codec BPE unicode tokens would conflict with existing tokens in the vocabulary, there are two options to mitigate this:

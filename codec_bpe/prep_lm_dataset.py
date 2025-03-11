@@ -4,6 +4,7 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from .tools.lm_dataset_builder import LMDatasetBuilder
+from .core.utils import get_codec_info, update_args_from_codec_info
 from . import UNICODE_OFFSET
 
 if __name__ == "__main__":
@@ -12,8 +13,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--tokenizer", type=str, required=True)
     parser.add_argument("--codes_path", type=str, required=True)
-    parser.add_argument("--num_codebooks", type=int, required=True)
-    parser.add_argument("--codebook_size", type=int, required=True)
+    parser.add_argument("--num_codebooks", type=int, default=None)
+    parser.add_argument("--codebook_size", type=int, default=None)
     parser.add_argument("--audio_start_token", type=str)
     parser.add_argument("--audio_end_token", type=str)
     parser.add_argument("--use_special_token_format", action="store_true")
@@ -25,6 +26,13 @@ if __name__ == "__main__":
     parser.add_argument("--codes_filter", type=str, nargs="+")
     parser.add_argument("--num_examples", type=int, default=None)
     args = parser.parse_args()
+
+    codec_info = get_codec_info(args.codes_path)
+    update_args_from_codec_info(args, codec_info)
+    if args.num_codebooks is None or args.codebook_size is None:
+        raise ValueError(
+            "codec_info.json does not exist in --codes_path so you must specify --num_codebooks and --codebook_size manually."
+        )
 
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 

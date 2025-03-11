@@ -2,15 +2,25 @@ from tqdm import tqdm
 import numpy as np
 import argparse
 
+from .core.utils import get_codec_info, update_args_from_codec_info
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Compute statistics for a plain-text codec BPE dataset")
     parser.add_argument("--dataset_path", type=str, required=True)
-    parser.add_argument("--num_codebooks", type=int, required=True)
-    parser.add_argument("--codec_framerate", type=float, required=True)
+    parser.add_argument("--codes_path", type=str)
+    parser.add_argument("--num_codebooks", type=int, default=None)
+    parser.add_argument("--codec_framerate", type=float, default=None)
     parser.add_argument("--audio_start_token", type=str)
     parser.add_argument("--audio_end_token", type=str)
     parser.add_argument("--num_examples", type=int, default=None)
     args = parser.parse_args()
+
+    if args.codes_path is not None:
+        codec_info = get_codec_info(args.codes_path)
+        update_args_from_codec_info(args, codec_info)
+    if args.num_codebooks is None or args.codec_framerate is None:
+        error_cause = "codec_info.json does not exist in --codes_path" if args.codes_path is not None else "--codes_path is not specified"
+        raise ValueError(f"{error_cause} so you must specify --num_codebooks and --codec_framerate manually.")
 
     lengths = []
     with open(args.dataset_path, encoding="utf-8") as f:
