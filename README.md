@@ -186,22 +186,4 @@ python -m codec_bpe.extend_tokenizer \
 This will simply add every token in `output/encodec_bpe_4cb_30k/tokenizer.json` to the `mistralai/Mistral-7B-v0.1` tokenizer as a special token and save a copy of the latter. 
 
 #### Avoiding vocabulary conflicts
-If the added Codec BPE unicode tokens would conflict with existing tokens in the vocabulary, there are two options to mitigate this:
-
-1. Override the default unicode offset using the `unicode_offset` argument for both `codec_bpe.train_tokenizer` and `codec_bpe.extend_tokenizer`. By default, unicode characters from the [CJK Unified Ideographs](https://symbl.cc/en/unicode-table/#cjk-unified-ideographs) block are used, following the Acoustic BPE paper. You can set `unicode_offset` to a different value to use a different unicode block that doesn't conflict with your existing vocabulary.
-
-2. Use the `use_special_token_format` argument for `codec_bpe.extend_tokenizer`. This wraps each unicode character in each ngram with <>. For example, the 4-gram token "一刁嘂娃" would be converted to a token containing the string "\<一>\<刁>\<嘂>\<娃>". This format is more verbose, but should virtually eliminate the possibility of a vocabulary conflict:
-    ```bash
-    python -m codec_bpe.extend_tokenizer \
-        --existing_tokenizer mistralai/Mistral-7B-v0.1 \
-        --codec_bpe_tokenizer output/my_tokenizer \
-        --audio_start_token "<audio>" \ # optional
-        --audio_end_token "</audio>" \  # optional
-        --use_special_token_format
-    ```
-    Then when preparing audio for tokenization with the extended tokenizer, you can pass the same argument to the `codes_to_chars` function:
-    ```python
-    # convert codes to unicode string
-    unicode_str = codes_to_chars(encoded_audio, codebook_size=model.config.codebook_size, use_special_token_format=True)
-    ```
-    It is unnecessary to pass this argument to `chars_to_codes` - it will automatically detect and remove the special token format before converting back to codes.
+If the added Codec BPE unicode tokens would conflict with existing tokens in the vocabulary, you can override the default unicode offset using the `unicode_offset` argument for both `codec_bpe.train_tokenizer` and `codec_bpe.extend_tokenizer`. By default, unicode characters from the [CJK Unified Ideographs](https://symbl.cc/en/unicode-table/#cjk-unified-ideographs) block are used, following the Acoustic BPE paper. You can set `unicode_offset` to a different value to use a different unicode block that doesn't conflict with your existing vocabulary.

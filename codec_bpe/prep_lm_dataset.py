@@ -17,7 +17,6 @@ if __name__ == "__main__":
     parser.add_argument("--codebook_size", type=int, default=None)
     parser.add_argument("--audio_start_token", type=str)
     parser.add_argument("--audio_end_token", type=str)
-    parser.add_argument("--use_special_token_format", action="store_true")
     parser.add_argument("--unicode_offset", type=int, default=UNICODE_OFFSET)
     parser.add_argument("--sequence_length", type=int, default=4096)
     parser.add_argument("--overlap_length", type=int, default=1024)
@@ -42,7 +41,6 @@ if __name__ == "__main__":
         codebook_size=args.codebook_size,
         audio_start_token=args.audio_start_token,
         audio_end_token=args.audio_end_token,
-        use_special_token_format=args.use_special_token_format,
         unicode_offset=args.unicode_offset,
         sequence_length=args.sequence_length,
         overlap_length=args.overlap_length,
@@ -59,4 +57,3 @@ if __name__ == "__main__":
                 break
             f.write(example)
             f.write("\n")
-            

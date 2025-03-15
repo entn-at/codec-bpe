@@ -9,7 +9,6 @@ if __name__ == "__main__":
     parser.add_argument("--codec_bpe_tokenizer", type=str, required=True)
     parser.add_argument("--audio_start_token", type=str)
     parser.add_argument("--audio_end_token", type=str)
-    parser.add_argument("--use_special_token_format", action="store_true")
     parser.add_argument("--save_path", type=str)
     args = parser.parse_args()
 
@@ -24,7 +23,6 @@ if __name__ == "__main__":
         codec_bpe_tokenizer,
         args.audio_start_token,
         args.audio_end_token,
-        args.use_special_token_format,
     )
     print(f"Added {num_added} tokens to the existing tokenizer {args.existing_tokenizer} and saved it as {args.save_path}.")
     existing_tokenizer.save_pretrained(args.save_path)

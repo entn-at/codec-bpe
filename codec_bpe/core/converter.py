@@ -12,7 +12,6 @@ UNICODE_OFFSET: int = 0x4E00
 def codes_to_chars(
     codes: Union[List[List[int]], np.ndarray, torch.Tensor], 
     codebook_size: int,
-    use_special_token_format: bool = False,
     copy_before_conversion: bool = True,
     unicode_offset: int = UNICODE_OFFSET,
 ) -> str:
@@ -28,7 +27,7 @@ def codes_to_chars(
     for i in range(codes.shape[0]):
         codes[i] += unicode_offset + i*codebook_size
     codes = codes.T.reshape(-1)
-    chars = _flattened_shifted_codes_to_chars(codes, use_special_token_format)
+    chars = "".join([chr(c) for c in codes])
     return chars
 
 def chars_to_codes(
@@ -41,9 +40,6 @@ def chars_to_codes(
     return_tensors: Optional[str] = None, 
     unicode_offset: int = UNICODE_OFFSET,
 ) -> Union[List[List[int]], np.ndarray, torch.Tensor]:
-    use_special_token_format = chars[0] == "<"
-    if use_special_token_format:
-        chars = chars.replace("<", "").replace(">", "")
     codes = np.array([ord(c) for c in chars])
     if drop_inconsistent_codes:
         codes = _drop_inconsistent_codes(codes, num_codebooks, codebook_size, unicode_offset)
@@ -57,17 +53,10 @@ def chars_to_codes(
     elif return_tensors == "pt":
         codes = torch.tensor(codes)
     if return_hanging_codes_chars:
-        begin_hanging = _flattened_shifted_codes_to_chars(begin_hanging, use_special_token_format)
-        end_hanging = _flattened_shifted_codes_to_chars(end_hanging, use_special_token_format)
+        begin_hanging = "".join([chr(c) for c in begin_hanging])
+        end_hanging = "".join([chr(c) for c in end_hanging])
         return codes, begin_hanging, end_hanging
     return codes
-
-def _flattened_shifted_codes_to_chars(codes: np.ndarray, use_special_token_format: bool) -> str:
-    if use_special_token_format:
-        chars = "".join([f"<{chr(c)}>" for c in codes])
-    else:
-        chars = "".join([chr(c) for c in codes])
-    return chars
 
 def _resolve_codebook(code: int, num_codebooks: int, codebook_size: int, unicode_offset: int) -> int:
     codebook = num_codebooks-1
@@ -129,4 +118,3 @@ def _drop_hanging_codes(
     return codes, begin_hanging, end_hanging
 
 
-    

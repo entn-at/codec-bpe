@@ -7,7 +7,6 @@ def extend_existing_tokenizer(
     codec_bpe_tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast],
     audio_start_token: Optional[str] = None,
     audio_end_token: Optional[str] = None,
-    use_special_token_format: bool = False,
 ) -> int:
     additional_special_tokens = []
     if audio_start_token is not None:
@@ -25,8 +24,6 @@ def extend_existing_tokenizer(
         if i in skip_token_ids:
             continue
         token = codec_bpe_tokenizer.convert_ids_to_tokens(i)
-        if use_special_token_format and i not in codec_bpe_tokenizer.added_tokens_decoder:
-            token = "".join([f"<{c}>" for c in token])
         target_tokens.append(token)
 
     num_added = 0

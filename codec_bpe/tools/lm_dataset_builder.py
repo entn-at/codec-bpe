@@ -14,7 +14,6 @@ class LMDatasetBuilder:
         codebook_size: int,
         audio_start_token: Optional[str] = None,
         audio_end_token: Optional[str] = None,
-        use_special_token_format: bool = False,
         unicode_offset: int = UNICODE_OFFSET,
         sequence_length: int = 4096,
         overlap_length: int = 1024,
@@ -23,7 +22,6 @@ class LMDatasetBuilder:
         self.tokenizer = tokenizer
         self.num_codebooks = num_codebooks
         self.codebook_size = codebook_size
-        self.use_special_token_format = use_special_token_format
         self.unicode_offset = unicode_offset
         self.sequence_length = sequence_length
         self.overlap_length = overlap_length
@@ -66,8 +64,7 @@ class LMDatasetBuilder:
             # convert to unicode string
             chars = codes_to_chars(
                 codes, 
-                self.codebook_size, 
-                use_special_token_format=self.use_special_token_format,
+                self.codebook_size,
                 copy_before_conversion=False,
                 unicode_offset=self.unicode_offset,
             )
