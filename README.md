@@ -5,6 +5,8 @@ Codec BPE is an implementation of [Acoustic BPE](https://arxiv.org/abs/2310.1458
 
 Codec BPE flattens multi-level codes from Residual Vector Quantizers (RVQ) and converts them into unicode strings for tokenization into compressed token sequences. For example, a single Codec BPE token might represent a 4-gram of codes from 4 codebooks representing a single acoustic unit, a 6-gram comprising a whole acoustic unit and half of the next one, or even an 8-gram represnting two whole acoustic units. Depending on the codec, vocab size and type of audio, this can yield savings of 2-5x in sequence length compared to directly modeling the flattened codebooks.
 
+Codec BPE can also be used with single-level codecs such as that used in the Acoustic BPE paper. In this case, a single Codec BPE token could represent one or more codes where each code represents a whole acoustic unit.
+
 **Using Codec BPE allows efficient audio language modeling with multi-level codecs to be done with vanilla LLM architectures, meaning no custom architecture is needed to deal with modeling the RVQ. Your model will already be compatible with the full ecosystem of training and inference tools available for [HuggingFace Transformers](https://github.com/huggingface/transformers), such as [vLLM](https://github.com/vllm-project/vllm) and [Ollama](https://ollama.com/)!**
 
 ## 🚀 Updates
@@ -171,6 +173,23 @@ To train a tokenizer from audio files:
     for training the tokenizer than you used for encoding the audio files.
 
     See [train_tokenizer.py](codec_bpe/train_tokenizer.py) for a complete list of supported arguments.
+
+#### Controlling the granularity of Codec BPE tokens
+The `max_token_codebook_ngrams` argument can be used to control how many codes can be merged into a single Codec BPE token. This is useful to avoid repetitive patterns in the audio manifesting as redundant tokens in the vocabulary. For example, if long segments of silence exist in the training audio then you may end up with hundreds of tokens that just represent different lengths of silence.
+
+To avoid this, you can set `max_token_codebook_ngrams` to the maximum number of codebook ngrams (whole acoustic units) you want to allow a single token to represent. For example, if you set `max_token_codebook_ngrams = 2` while `num_codebooks` is set to 4, then a single Codec BPE token may only hold up to 8 codes:
+```bash
+python -m codec_bpe.train_tokenizer \
+    --codes_path output/codes/encodec_24khz/mono \
+    --chunk_size_secs 30 \
+    --vocab_size 30000 \
+    --pad_token "<pad>" \
+    --max_token_codebook_ngrams 2
+```
+
+**It is highly recommended to set this argument to a value <= 2 to ensure that your `vocab_size` budget gets distributed across diverse acoustic patterns in your training data.**
+
+Setting `max_token_codebook_ngrams = 0` will skip tokenizer training and simply output a base vocabulary of `num_codebooks x codebook_size` tokens, each representing a single code from a single codebook. This is useful if you want to directly model individual codes from the flattened codebooks instead of combining them into n-grams.
 
 ### Extend an existing Transformers PreTrainedTokenizer
 You may want to train a new Codec BPE tokenizer and then export its trained vocabulary to an existing Transformers tokenizer. For example, extending the Llama, Mistral, Qwen, etc. tokenizers for multimodal text-audio language modeling.

@@ -34,6 +34,8 @@ class Trainer:
             raise ValueError(
                 "Either pad_token or eos_token should be set, otherwise padded batching will not work with this tokenizer."
             )
+        if max_token_codebook_ngrams is not None and max_token_codebook_ngrams < 0:
+            raise ValueError("max_token_codebook_ngrams must be a non-negative integer (0 or greater).")
 
         self.num_codebooks = num_codebooks
         self.codebook_size = codebook_size
@@ -69,7 +71,7 @@ class Trainer:
                     codes[:, i:i+chunk_size], 
                     self.codebook_size, 
                     copy_before_conversion=False,
-                    unicode_offset=self.unicode_offset
+                    unicode_offset=self.unicode_offset,
                 )
                 yield chars
 
@@ -93,15 +95,20 @@ class Trainer:
         # each codebook, representing a complete acoustic unit.
         # For example if num_codebooks = 4 and max_token_codebook_ngrams = 5, the maximum token length would be 20.
         max_token_length = None
-        if self.max_token_codebook_ngrams is not None and self.max_token_codebook_ngrams > 0:
-            # the +1 is because max_token_length is exclusive (e.g., max_token_length of n yields an actual max token length of n-1).
-            # not sure if this is a bug in Tokenizers or intended behavior.
-            max_token_length = self.max_token_codebook_ngrams * self.num_codebooks + 1
+        if self.max_token_codebook_ngrams is not None:
+            max_token_length = max(1, self.max_token_codebook_ngrams * self.num_codebooks)
 
         # Train tokenizer
-        codes_files = get_codes_files(codes_path, codes_filter, num_files)
-        codes_iterator = self._iterate_and_convert(codes_files)
-                
+        if max_token_length == 1:
+            # We don't need to actually train the tokenizer here, just create one with the initial alphabet.
+            codes_iterator = []
+        else:
+            codes_files = get_codes_files(codes_path, codes_filter, num_files)
+            codes_iterator = self._iterate_and_convert(codes_files)
+            # the +1 is because max_token_length is exclusive (e.g., max_token_length of n yields an actual max token length of n-1).
+            # not sure if this is a bug in Tokenizers or intended behavior.
+            max_token_length = max_token_length + 1 if max_token_length is not None else None
+
         tokenizer = SentencePieceBPETokenizer(unk_token=self.unk_token, add_prefix_space=False)
         tokenizer.train_from_iterator(
             codes_iterator,
