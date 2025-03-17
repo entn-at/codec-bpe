@@ -32,7 +32,7 @@ pip install codec-bpe[funcodec]
 | Model                                                               | Sample Rate (kHz)* | Framerate (Hz)* | Max Codebooks | Codebook Size | Max Bandwidth (kbps)* | Training Domain |
 |:--------------------------------------------------------------------|:------------------:|:--------------:|:--------------:|:-------------:|:---------------------:|:---------------:|
 | [🤗 EnCodec 24khz](https://huggingface.co/facebook/encodec_24khz)  | 24                 | 75             | 32             | 1024          | 24                    | General         |
-| [🤗 DAC 44khz](https://huggingface.co/descript/dac_44khz)          | 44.1               | 86.13          | 9              | 1024          | 7.8                   | General         |
+| [🤗 DAC 44khz](https://huggingface.co/descript/dac_44khz)          | 44.1               | 86.1328125     | 9              | 1024          | 7.8                   | General         |
 | [🤗 DAC 24khz](https://huggingface.co/descript/dac_24khz)          | 24                 | 75             | 32             | 1024          | 24                    | General         |
 | [🤗 DAC 16khz](https://huggingface.co/descript/dac_16khz)          | 16                 | 50             | 12             | 1024          | 6                     | General         |
 | [🤗 Mimi](https://huggingface.co/kyutai/mimi)                      | 24                 | 12.5           | 32             | 2048          | 4.4                   | Speech          |
